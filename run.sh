@@ -136,8 +136,21 @@ cmd_setup() {
   log "environment ok. Inference backends are separate - see docs/INSTALL.md"
 }
 
+# huggingface_hub renamed its CLI from `huggingface-cli` to `hf`; recent
+# versions ship the old name as a stub that only prints a deprecation notice.
+hf_download() {
+  if command -v hf >/dev/null 2>&1; then
+    hf download "$@"
+  elif command -v huggingface-cli >/dev/null 2>&1; then
+    huggingface-cli download "$@"
+  else
+    die "no huggingface CLI found: pip install \"huggingface_hub[cli]\""
+  fi
+}
+
 cmd_models() {
-  need huggingface-cli
+  command -v hf >/dev/null 2>&1 || command -v huggingface-cli >/dev/null 2>&1 \
+    || die "no huggingface CLI found: pip install \"huggingface_hub[cli]\""
   # Quantization is pure CPU work, so this build wants neither CUDA nor nvcc.
   # Inference goes through llama-cpp-python, which is the CUDA-linked one.
   [[ -d "$LLAMA_CPP" ]] || die "llama.cpp not found at $LLAMA_CPP
@@ -168,7 +181,7 @@ cmd_models() {
 
     if [[ ! -f "$f16" ]]; then
       log "$size: fetching F16"
-      huggingface-cli download "$repo" --include "*fp16*.gguf" \
+      hf_download "$repo" --include "*fp16*.gguf" \
         --local-dir "$HF_MODELS/dl/$short"
 
       # 3B and larger are published as shards and must be joined before they

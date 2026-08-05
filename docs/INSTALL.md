@@ -82,7 +82,7 @@ CMAKE_ARGS="-DGGML_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=89" \
 `89` là compute capability của Ada Lovelace (RTX 5000 Ada, 4090, L40S).
 Ampere A100 dùng `80`, A6000/3090 dùng `86`, H100 dùng `90`.
 
-### Cách B — wheel, tải có resume
+### Cách B — wheel dựng sẵn, tải có resume
 
 Index chỉ có `cu121`–`cu124`; `cu125` trả 404. Dùng `cu124`:
 
@@ -105,22 +105,11 @@ python scripts/check_gpu.py
 Bản CPU-only cài sạch sẽ và cho số liệu đúng, chỉ chậm hơn khoảng 50 lần. Lỗi này
 im lặng, và trên grid 96,000 cell nó là khác biệt giữa một đêm và hai tuần.
 
-### Cách B — build từ nguồn
-
-Nếu không có wheel khớp:
+Nếu máy chưa có `nvcc` mà bạn vẫn muốn build từ nguồn:
 
 ```bash
-# toolchain, cài vào chính env conda để không đụng hệ thống
 conda install -c conda-forge cmake ninja gcc_linux-64 gxx_linux-64 -y
-conda install -c nvidia cuda-toolkit=12.4 -y      # khớp với nvidia-smi
-
-CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python \
-  --no-binary llama-cpp-python --no-cache-dir
-```
-
-Build mất 10–20 phút. Nếu lỗi `nvcc not found`, `CUDA_HOME` chưa trỏ đúng:
-
-```bash
+conda install -c nvidia cuda-toolkit -y
 export CUDA_HOME="$CONDA_PREFIX"
 ```
 
@@ -146,12 +135,15 @@ Nếu để chỗ khác thì báo cho `run.sh`:
 export LLAMA_CPP=/duong/dan/toi/llama.cpp
 ```
 
-Cũng cần `huggingface-cli` để tải model:
+Cũng cần CLI của HuggingFace để tải model:
 
 ```bash
 pip install "huggingface_hub[cli]"
-huggingface-cli login       # nếu repo yêu cầu
+hf auth login               # chỉ khi repo yêu cầu; Qwen thì không
 ```
+
+> Lệnh cũ `huggingface-cli` đã bị khai tử, bản mới tên là `hf`. `run.sh` nhận cả
+> hai nên bạn không phải quan tâm, nhưng gõ tay thì dùng `hf`.
 
 ---
 
@@ -198,7 +190,7 @@ Bốn lệnh này xanh là mọi thứ trừ inference thật đã sẵn sàng.
 | `check_gpu.py` báo `gpu offload: False` | Wheel không có CUDA. Cài lại theo Cách A, hoặc build lại với `CMAKE_ARGS` |
 | Đi tìm wheel `cu130` | Không tồn tại và không cần — driver mới chạy được runtime cũ hơn. Dùng `cu124` |
 | `llama-quantize not built` | Chưa build binary llama.cpp, hoặc `LLAMA_CPP` trỏ sai |
-| `missing command: huggingface-cli` | `pip install "huggingface_hub[cli]"` |
+| `huggingface-cli is deprecated and no longer works` | Lệnh mới là `hf`. `pip install "huggingface_hub[cli]"` rồi `git pull` — `run.sh` đã nhận cả hai |
 | pip đè lên gói conda | Bình thường ở đây; chỉ cài `pip` **sau khi** đã activate env |
 | `IncompleteRead` / `Connection broken` khi pip tải wheel | Wheel 1.8 GB và pip không resume. Dùng `bash scripts/install_llamacpp.sh` |
 | Build từ nguồn lỗi, `nvcc` không tìm thấy host compiler | `conda install -c conda-forge gcc_linux-64 gxx_linux-64 -y` |
