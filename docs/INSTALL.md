@@ -44,14 +44,56 @@ nvidia-smi | head -4
 > cài.** CUDA tương thích ngược: driver 580 (CUDA 13.0) chạy tốt binary build cho
 > 12.x. Đừng đi tìm wheel `cu130` — không có, và cũng không cần.
 
-### Cách A — wheel dựng sẵn (thử cách này trước)
-
-Nhanh nhất, không cần compiler, không cần cài CUDA toolkit (wheel đã gói sẵn
-runtime). Index chỉ có `cu121`–`cu124`; `cu125` hiện trả 404. Dùng `cu124`:
+### Cách nhanh nhất: để script tự chọn
 
 ```bash
-pip install llama-cpp-python \
-  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+bash scripts/install_llamacpp.sh
+```
+
+Nó kiểm tra `nvcc` rồi chọn đường phù hợp, và tự chạy `check_gpu.py` ở cuối.
+Phần dưới giải thích nó chọn thế nào và vì sao.
+
+### Cân nhắc: wheel hay build từ nguồn?
+
+| | Wheel dựng sẵn | Build từ nguồn |
+|---|---|---|
+| Tải về | **1.3–1.8 GB** | ~70 MB |
+| Cần `nvcc` | Không | Có |
+| Thời gian (mạng nhanh) | vài phút | 15–25 phút |
+| Thời gian (mạng 100 kB/s) | **4–5 giờ** | ~35 phút |
+
+Wheel to như vậy vì nó gói kernel cho **mọi** kiến trúc CUDA. Build từ nguồn chỉ
+biên dịch cho đúng GPU của bạn.
+
+> **pip không resume được.** Đứt mạng giữa chừng là mất sạch và phải tải lại từ
+> đầu — đúng cái xảy ra với wheel 1.8 GB trên đường truyền chậm. Script dùng
+> `wget -c` nên ngắt rồi chạy lại là nó đi tiếp.
+
+### Cách A — build từ nguồn (nếu có `nvcc`)
+
+```bash
+nvcc --version                    # có kết quả thì dùng cách này
+conda install -c conda-forge cmake ninja -y
+
+CMAKE_ARGS="-DGGML_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=89" \
+  pip install llama-cpp-python --no-binary llama-cpp-python --no-cache-dir
+```
+
+`89` là compute capability của Ada Lovelace (RTX 5000 Ada, 4090, L40S).
+Ampere A100 dùng `80`, A6000/3090 dùng `86`, H100 dùng `90`.
+
+### Cách B — wheel, tải có resume
+
+Index chỉ có `cu121`–`cu124`; `cu125` trả 404. Dùng `cu124`:
+
+```bash
+tmux new -s wheel                 # 4-5 tiếng, đừng để đứt SSH
+mkdir -p ~/.cache/quantrag && cd ~/.cache/quantrag
+wget -c --tries=0 --read-timeout=30 \
+  https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.34-cu124/llama_cpp_python-0.3.34-py3-none-manylinux_2_35_x86_64.whl
+
+pip install --no-deps llama_cpp_python-0.3.34-py3-none-manylinux_2_35_x86_64.whl
+pip install diskcache jinja2 numpy typing-extensions
 ```
 
 **Xác minh nó thật sự chạm GPU** — bước này không được bỏ:
@@ -158,6 +200,8 @@ Bốn lệnh này xanh là mọi thứ trừ inference thật đã sẵn sàng.
 | `llama-quantize not built` | Chưa build binary llama.cpp, hoặc `LLAMA_CPP` trỏ sai |
 | `missing command: huggingface-cli` | `pip install "huggingface_hub[cli]"` |
 | pip đè lên gói conda | Bình thường ở đây; chỉ cài `pip` **sau khi** đã activate env |
+| `IncompleteRead` / `Connection broken` khi pip tải wheel | Wheel 1.8 GB và pip không resume. Dùng `bash scripts/install_llamacpp.sh` |
+| Build từ nguồn lỗi, `nvcc` không tìm thấy host compiler | `conda install -c conda-forge gcc_linux-64 gxx_linux-64 -y` |
 
 > **Đừng trộn `conda install` và `pip install` cho cùng một gói.** Ở dự án này:
 > conda chỉ lo Python và toolchain CUDA, pip lo toàn bộ gói Python.
