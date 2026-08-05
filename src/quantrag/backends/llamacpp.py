@@ -54,11 +54,13 @@ class LlamaCppBackend:
         self.n_ctx = n_ctx
         self.main_gpu = main_gpu
         self.split_mode = split_mode
-        # Escape hatch: if a llama-cpp-python release ever changes how n_tokens
-        # relates to the cache, set QUANTRAG_NO_KV_REUSE=1 and every candidate
-        # gets a clean full evaluation. scripts/verify_kv_reuse.py checks the
-        # two paths agree.
-        self.kv_reuse = os.environ.get("QUANTRAG_NO_KV_REUSE", "") == ""
+        # Off by default. Reusing the prompt's cache between candidates ought to
+        # halve the work, but measured on a realistic mix of conditions it came
+        # out at 1.02x - llama.cpp is already avoiding most of the recomputation
+        # on its own. It did move a few items by up to 4e-2 in R. Two percent is
+        # not worth any discrepancy at all, so the plain path is the default and
+        # this stays available for measurement only.
+        self.kv_reuse = os.environ.get("QUANTRAG_KV_REUSE", "") == "1"
 
         # One model, one GPU, by default. Every model here fits in a single
         # card, so splitting a 1.5B across two devices buys nothing and adds a
