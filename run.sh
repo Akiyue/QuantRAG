@@ -28,8 +28,33 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-PY="${PY:-$ROOT/.venv/bin/python}"
-[[ -x "$PY" ]] || PY="$ROOT/.venv/Scripts/python.exe"   # Windows layout
+# Interpreter resolution, in order of specificity: an explicit override, a local
+# venv, the active conda environment, then whatever is on PATH. The server runs
+# conda and the laptop runs a venv; neither should have to know about the other.
+resolve_python() {
+  local c
+  for c in "${PY:-}" \
+           "$ROOT/.venv/bin/python" "$ROOT/.venv/Scripts/python.exe" \
+           "${CONDA_PREFIX:-}/bin/python" "${CONDA_PREFIX:-}/python.exe"; do
+    [[ -n "$c" && -x "$c" ]] && { echo "$c"; return; }
+  done
+  command -v python3 || command -v python
+}
+PY="$(resolve_python)"
+
+check_python() {
+  [[ -n "$PY" ]] || die "no Python found. Activate your environment first:
+  conda activate quantrag"
+  local v
+  v="$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)" \
+    || die "cannot run $PY"
+  case "$v" in
+    3.11|3.12) ;;
+    *) die "Python $v at $PY. Use 3.11 or 3.12 - torch, llama-cpp-python and
+  autoawq have no wheels for 3.13+, and 3.10 is below the floor.
+  conda create -n quantrag python=3.12 && conda activate quantrag" ;;
+  esac
+}
 LLAMA_CPP="${LLAMA_CPP:-$ROOT/../llama.cpp}"
 HF_MODELS="${HF_MODELS:-$ROOT/models}"
 LOGS="$ROOT/logs"
@@ -93,12 +118,22 @@ cmd_gate() {
 # --------------------------------------------------------------------- stages
 
 cmd_setup() {
-  need uv
-  log "creating venv (3.12; torch and llama-cpp-python have no 3.14 wheels)"
-  uv venv --python 3.12 || true
-  uv pip install -e ".[dev]"
+  if [[ -n "${CONDA_PREFIX:-}" ]]; then
+    # Inside an activated conda env: install into it rather than nesting a venv,
+    # which would shadow the CUDA-linked packages conda put there.
+    log "conda env: $CONDA_PREFIX"
+    check_python
+    "$PY" -m pip install -e ".[dev]"
+  else
+    need uv
+    log "no conda env active; creating a local venv on 3.12"
+    uv venv --python 3.12 || true
+    PY="$(resolve_python)"
+    check_python
+    uv pip install -e ".[dev]"
+  fi
   "$PY" -m pytest -q || die "test suite failed - fix before running anything expensive"
-  log "environment ok"
+  log "environment ok. Inference backends are separate - see docs/INSTALL.md"
 }
 
 cmd_models() {
@@ -239,6 +274,12 @@ cmd_status() {
 }
 
 # ----------------------------------------------------------------- dispatch
+
+# Every stage but `setup` and `status` needs a usable interpreter.
+case "${1:-}" in
+  setup|status|gate|"") ;;
+  *) check_python ;;
+esac
 
 case "${1:-}" in
   setup)   shift; cmd_setup   "$@" ;;

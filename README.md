@@ -8,26 +8,25 @@ Measuring context–memory arbitration in local RAG.
 
 ## Setup
 
-Python 3.11–3.12. **Not 3.14** — `torch`, `llama-cpp-python` and `autoawq` have no
-wheels for it.
+Python 3.11 or 3.12 — **not 3.13+**, which has no wheels for `torch`,
+`llama-cpp-python` or `autoawq`. `run.sh` refuses to run on the wrong version.
+
+Conda (what the GPU server uses):
 
 ```bash
-uv venv --python 3.12
-uv pip install -e ".[dev]"
+conda create -n quantrag python=3.12 -y && conda activate quantrag
+pip install -e ".[dev]"
 ```
 
-Tier A inference stack (primary — every precision level goes through this one
-runtime, which is what makes the ladder a controlled comparison):
+Or a local venv:
 
 ```bash
-CMAKE_ARGS="-DGGML_CUDA=on" uv pip install llama-cpp-python --no-binary llama-cpp-python
+uv venv --python 3.12 && uv pip install -e ".[dev]"
 ```
 
-Tier B (robustness check only, reported in its own subsection):
-
-```bash
-uv pip install -e ".[hf]"
-```
+`run.sh` detects either. **Inference backends are a separate step** — see
+[docs/INSTALL.md](docs/INSTALL.md) for the CUDA build of `llama-cpp-python`, the
+`llama.cpp` binaries needed to quantize, and the optional tier B stack.
 
 ## Layout
 
