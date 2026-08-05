@@ -138,9 +138,12 @@ cmd_setup() {
 
 cmd_models() {
   need huggingface-cli
+  # Only llama-quantize and the conversion script are needed here, and
+  # quantization is pure CPU work - so this build does not want CUDA or nvcc.
+  # Inference goes through llama-cpp-python, which is the CUDA-linked one.
   [[ -d "$LLAMA_CPP" ]] || die "llama.cpp not found at $LLAMA_CPP
   git clone https://github.com/ggerganov/llama.cpp \"$LLAMA_CPP\"
-  cmake -B build -DGGML_CUDA=ON \"$LLAMA_CPP\" && cmake --build \"$LLAMA_CPP/build\" -j"
+  cmake -B \"$LLAMA_CPP/build\" \"$LLAMA_CPP\" && cmake --build \"$LLAMA_CPP/build\" -j"
 
   local quantizer
   quantizer="$(find "$LLAMA_CPP" -name 'llama-quantize*' -type f 2>/dev/null | head -1)"
