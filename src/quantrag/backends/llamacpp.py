@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 from pathlib import Path
 from typing import Sequence
 
@@ -53,6 +54,11 @@ class LlamaCppBackend:
         self.n_ctx = n_ctx
         self.main_gpu = main_gpu
         self.split_mode = split_mode
+        # Escape hatch: if a llama-cpp-python release ever changes how n_tokens
+        # relates to the cache, set QUANTRAG_NO_KV_REUSE=1 and every candidate
+        # gets a clean full evaluation. scripts/verify_kv_reuse.py checks the
+        # two paths agree.
+        self.kv_reuse = os.environ.get("QUANTRAG_NO_KV_REUSE", "") == ""
 
         # One model, one GPU, by default. Every model here fits in a single
         # card, so splitting a 1.5B across two devices buys nothing and adds a
@@ -95,10 +101,19 @@ class LlamaCppBackend:
         """
         import numpy as np
 
-        results: list[ScoreResult] = []
         prompt_ids = self._tokenize(prompt, add_bos=True)
         n_prompt = len(prompt_ids)
 
+        # The candidates share a prompt, and the prompt is ~150 tokens against
+        # answers of two or three. Processing it once and rewinding to its end
+        # between candidates roughly halves the work; without the reuse we would
+        # push the same 150 tokens through the model twice for every cell.
+        if self.kv_reuse:
+            self._llm.reset()
+            self._llm.eval(prompt_ids)
+            base_n = self._llm.n_tokens
+
+        results: list[ScoreResult] = []
         for cont in continuations:
             full_ids = self._tokenize(prompt + cont, add_bos=True)
             if full_ids[:n_prompt] != prompt_ids:
@@ -116,8 +131,15 @@ class LlamaCppBackend:
                     f"prompt+answer is {len(full_ids)} tokens, over n_ctx={self.n_ctx}"
                 )
 
-            self._llm.reset()
-            self._llm.eval(full_ids)
+            if self.kv_reuse:
+                # Rewind the logical length; llama.cpp's cache is positional, so
+                # the next eval overwrites the slots the previous candidate used.
+                self._llm.n_tokens = base_n
+                self._llm.eval(target_ids)
+            else:
+                self._llm.reset()
+                self._llm.eval(full_ids)
+
             scores = np.asarray(self._llm.scores, dtype=np.float32)
             if scores.ndim != 2 or scores.shape[0] < len(full_ids):
                 raise RuntimeError(

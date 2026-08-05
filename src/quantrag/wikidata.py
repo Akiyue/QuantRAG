@@ -127,6 +127,35 @@ class Wikidata:
 
     # -- subject resolution ----------------------------------------------
 
+    def prefetch_searches(self, names: list[str], workers: int = 6) -> None:
+        """Warm the search cache concurrently.
+
+        Subject resolution is one search plus a claims fetch per candidate, done
+        serially at a polite delay - which makes the dataset build network-bound
+        for an hour or more while the machine sits idle. The searches are
+        independent, so running a handful at once turns most of that wait into
+        overlap. Kept modest: the point is to stop wasting the latency, not to
+        hammer a public API.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        todo = [n for n in dict.fromkeys(names) if f"search:{n}" not in self._cache]
+        if not todo:
+            return
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(self.search, todo))
+
+    def prefetch_entities(self, qids: list[str], workers: int = 4) -> None:
+        """Warm the claims cache for many entities concurrently."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        todo = [q for q in dict.fromkeys(qids) if f"{q}|claims" not in self._cache]
+        if not todo:
+            return
+        chunks = [todo[i:i + 50] for i in range(0, len(todo), 50)]
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(lambda c: self.entities(c, with_claims=True), chunks))
+
     def resolve_subject(self, name: str, pid: str, expect_qid: str) -> dict | None:
         """Find the QID for `name` and verify it carries pid -> expect_qid.
 

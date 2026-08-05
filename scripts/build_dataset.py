@@ -172,6 +172,8 @@ def main() -> None:
                     help="CounterFact rows to cache; lower it for a quick trial")
     ap.add_argument("--delay", type=float, default=0.2,
                     help="seconds between Wikidata calls")
+    ap.add_argument("--workers", type=int, default=6,
+                    help="concurrent Wikidata lookups during prefetch")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -218,6 +220,21 @@ def main() -> None:
         rng.shuffle(rs)
         shortlist.extend(rs[:per_rel])
     rng.shuffle(shortlist)
+
+    # Warm the search cache in parallel first. Resolution is otherwise a long
+    # serial wait on network latency with the machine doing nothing.
+    print(f"  prefetching {len(shortlist)} subject searches")
+    try:
+        wd.prefetch_searches([r["subject"].strip() for r in shortlist],
+                             workers=args.workers)
+        wd.prefetch_entities(
+            [q for r in shortlist for q in wd.search(r["subject"].strip())[:3]],
+            workers=max(2, args.workers // 2),
+        )
+    except Exception as exc:  # noqa: BLE001 - prefetch is an optimisation
+        print(f"  prefetch stopped early ({exc}); continuing serially")
+    finally:
+        wd.save()
 
     facts: list[Fact] = []
     kept: Counter[str] = Counter()

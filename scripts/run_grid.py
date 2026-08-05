@@ -29,7 +29,8 @@ def load_yaml(p: Path) -> dict:
         return yaml.safe_load(fh)
 
 
-def variants(models_cfg: dict, only: list[str] | None, tier: str) -> list[dict]:
+def variants(models_cfg: dict, only: list[str] | None, tier: str,
+             precisions: list[str] | None = None) -> list[dict]:
     out: list[dict] = []
     for model in models_cfg["models"]:
         if only and model["id"] not in only:
@@ -39,6 +40,8 @@ def variants(models_cfg: dict, only: list[str] | None, tier: str) -> list[dict]:
         for var in model["variants"]:
             v_tier = var.get("tier", "A")
             if tier != "all" and v_tier != tier:
+                continue
+            if precisions and var["precision"] not in precisions:
                 continue
             out.append({**var, "model_id": model["id"],
                         **{k: v for k, v in models_cfg["runtime"].items()
@@ -52,6 +55,8 @@ def main() -> None:
                     choices=["filter", "main", "dose"])
     ap.add_argument("--facts", default="data/facts.jsonl")
     ap.add_argument("--models", nargs="*", default=None)
+    ap.add_argument("--precisions", nargs="*", default=None,
+                    help="shard the work: each (model, precision) is independent")
     ap.add_argument("--tier", default="A", choices=["A", "B", "all"])
     ap.add_argument("--limit", type=int, default=0, help="first N facts (pilot)")
     ap.add_argument("--out-dir", default=None)
@@ -90,7 +95,7 @@ def main() -> None:
         kwargs = {"doses": d["doses"]}
 
     specs = [{"backend": "mock", "model_id": "mock", "precision": "MOCK"}] if args.mock \
-        else variants(models_cfg, args.models, args.tier)
+        else variants(models_cfg, args.models, args.tier, args.precisions)
     if not specs:
         sys.exit("no model variants selected")
 
