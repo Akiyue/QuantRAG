@@ -1,0 +1,162 @@
+# Relation templates.
+#
+# Only relations whose OBJECTS have near-complete Vietnamese labels on Wikidata
+# are listed (measured by scripts/survey_counterfact_vi.py). That is what lets
+# the Vietnamese arm be built without translating a single entity name.
+#
+# Stratification is by relation, not by invented topical domains: relation is
+# the natural stratum here and it is what the coverage analysis showed varies.
+#
+# {s} = subject, {o} = object.
+#
+# ---------------------------------------------------------------------------
+# THE VIETNAMESE STRINGS BELOW ARE A DRAFT AND MUST BE REVIEWED BY A NATIVE
+# SPEAKER BEFORE ANY GRID RUNS. They are the wording the model is judged on; a
+# stilted or ambiguous question makes the Vietnamese arm measure translation
+# quality rather than quantization. Sign off with `./run.sh gate templates`.
+# ---------------------------------------------------------------------------
+
+relations:
+  P103:
+    name: native_language
+    domain: language
+    en:
+      q_filter: "What is the native language of {s}?"
+      q_eval: "Which language did {s} speak from birth?"
+      evidence: "The native language of {s} is {o}."
+      evidence_para: "{s} grew up speaking {o} as a first language."
+      irrelevant: "{s} has been discussed in a number of published sources."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "Tiếng mẹ đẻ của {s} là gì?"
+      q_eval: "{s} nói ngôn ngữ nào từ khi sinh ra?"
+      evidence: "Tiếng mẹ đẻ của {s} là {o}."
+      evidence_para: "{s} lớn lên và sử dụng {o} như ngôn ngữ đầu tiên."
+      irrelevant: "{s} đã được nhắc đến trong nhiều tài liệu đã xuất bản."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P27:
+    name: citizenship
+    domain: nationality
+    en:
+      q_filter: "Which country is {s} a citizen of?"
+      q_eval: "{s} holds citizenship of which nation?"
+      evidence: "{s} is a citizen of {o}."
+      evidence_para: "Citizenship of {o} is held by {s}."
+      irrelevant: "{s} has been discussed in a number of published sources."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "{s} là công dân của nước nào?"
+      q_eval: "{s} mang quốc tịch của quốc gia nào?"
+      evidence: "{s} là công dân của {o}."
+      evidence_para: "Quốc tịch {o} thuộc về {s}."
+      irrelevant: "{s} đã được nhắc đến trong nhiều tài liệu đã xuất bản."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P17:
+    name: country
+    domain: geography
+    en:
+      q_filter: "Which country is {s} located in?"
+      q_eval: "In what country can {s} be found?"
+      evidence: "{s} is located in {o}."
+      evidence_para: "The location of {s} falls within {o}."
+      irrelevant: "{s} appears in several reference works."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "{s} nằm ở quốc gia nào?"
+      q_eval: "Có thể tìm thấy {s} ở nước nào?"
+      evidence: "{s} nằm ở {o}."
+      evidence_para: "Vị trí của {s} thuộc phạm vi {o}."
+      irrelevant: "{s} xuất hiện trong một số tài liệu tra cứu."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P495:
+    name: country_of_origin
+    domain: geography
+    en:
+      q_filter: "Which country did {s} originate in?"
+      q_eval: "{s} comes from which country?"
+      evidence: "{s} originated in {o}."
+      evidence_para: "The country where {s} first appeared is {o}."
+      irrelevant: "{s} appears in several reference works."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "{s} có xuất xứ từ quốc gia nào?"
+      q_eval: "{s} đến từ nước nào?"
+      evidence: "{s} có xuất xứ từ {o}."
+      evidence_para: "Quốc gia nơi {s} xuất hiện đầu tiên là {o}."
+      irrelevant: "{s} xuất hiện trong một số tài liệu tra cứu."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P30:
+    name: continent
+    domain: geography
+    en:
+      q_filter: "Which continent is {s} located in?"
+      q_eval: "On what continent does {s} lie?"
+      evidence: "{s} is located in {o}."
+      evidence_para: "The continent containing {s} is {o}."
+      irrelevant: "{s} appears in several reference works."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "{s} nằm ở châu lục nào?"
+      q_eval: "{s} thuộc châu nào?"
+      evidence: "{s} nằm ở {o}."
+      evidence_para: "Châu lục chứa {s} là {o}."
+      irrelevant: "{s} xuất hiện trong một số tài liệu tra cứu."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P20:
+    name: place_of_death
+    domain: history
+    en:
+      q_filter: "In which city did {s} die?"
+      q_eval: "{s} passed away in what city?"
+      evidence: "{s} died in {o}."
+      evidence_para: "The city in which {s} passed away is {o}."
+      irrelevant: "{s} has been discussed in a number of published sources."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "{s} qua đời tại thành phố nào?"
+      q_eval: "{s} mất ở thành phố nào?"
+      evidence: "{s} qua đời tại {o}."
+      evidence_para: "Thành phố nơi {s} từ trần là {o}."
+      irrelevant: "{s} đã được nhắc đến trong nhiều tài liệu đã xuất bản."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P136:
+    name: genre
+    domain: culture
+    en:
+      q_filter: "What genre does {s} perform?"
+      q_eval: "{s} is associated with which genre?"
+      evidence: "{s} performs {o}."
+      evidence_para: "The genre associated with {s} is {o}."
+      irrelevant: "{s} has been discussed in a number of published sources."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "{s} biểu diễn thể loại nào?"
+      q_eval: "{s} gắn với thể loại nào?"
+      evidence: "{s} biểu diễn {o}."
+      evidence_para: "Thể loại gắn với {s} là {o}."
+      irrelevant: "{s} đã được nhắc đến trong nhiều tài liệu đã xuất bản."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."
+
+  P106:
+    name: occupation
+    domain: culture
+    en:
+      q_filter: "What is the occupation of {s}?"
+      q_eval: "{s} works as what?"
+      evidence: "{s} works as a {o}."
+      evidence_para: "The profession of {s} is {o}."
+      irrelevant: "{s} has been discussed in a number of published sources."
+      control: "This entry was included in the reference collection index."
+    vi:
+      q_filter: "Nghề nghiệp của {s} là gì?"
+      q_eval: "{s} làm nghề gì?"
+      evidence: "{s} làm nghề {o}."
+      evidence_para: "Nghề của {s} là {o}."
+      irrelevant: "{s} đã được nhắc đến trong nhiều tài liệu đã xuất bản."
+      control: "Mục này được đưa vào danh mục bộ sưu tập tham khảo."

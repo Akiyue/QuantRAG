@@ -1,0 +1,31 @@
+[project]
+name = "quantrag"
+version = "0.1.0"
+description = "Measuring context-memory arbitration in quantized small local language models"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "statsmodels>=0.14",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Tier A - primary inference stack. Build with CUDA:
+#   CMAKE_ARGS="-DGGML_CUDA=on" uv pip install llama-cpp-python --no-binary llama-cpp-python
+llamacpp = ["llama-cpp-python>=0.3.0"]
+# Tier B - robustness check only (AWQ). Also the infrastructure for the journal extension.
+hf = ["torch>=2.4", "transformers>=4.44", "accelerate>=0.33", "autoawq>=0.2.6"]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quantrag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

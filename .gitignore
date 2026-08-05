@@ -1,0 +1,10 @@
+logs/
+runs/
+models/
+.gates/
+.venv/
+__pycache__/
+*.pyc
+data/facts.jsonl
+data/raw/
+.claude/settings.local.json

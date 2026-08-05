@@ -1,0 +1,40 @@
+grid:
+  languages: [en, vi]
+  conditions: [C0, C1, C2, C3_fake_first, C3_true_first, C4]
+  modes: [strict, truth_seeking]
+  kinds: [score, generate]
+  question_kind: q_eval
+
+# Parametric-known filtering. Runs on q_filter, never on q_eval: selecting items
+# on the same question used for evaluation is selection on the baseline arm and
+# manufactures an apparent quantization effect.
+filter_pass:
+  conditions: [C0]
+  modes: [strict]
+  kinds: [score, generate]
+  question_kind: q_filter
+
+# Evidence-pressure ladder. MANDATORY TO COLLECT even if week 3 has no time to
+# analyse it: this is the raw material for the journal metric contribution, and
+# re-running it months later loses comparability with the conference numbers.
+dose_response:
+  doses: [0, 1, 2, 3, 4]
+  languages: [en, vi]
+  modes: [strict]
+  subset: xai_100          # the stratified sample, not all 500
+
+xai:
+  n_samples: 100           # 20 per domain, same items across every configuration
+  ablation_spans: [instruction, evidence, question]
+  use_control_span: true   # non-negotiable: without it A(evidence) is meaningless
+  paraphrase_condition: C2_para
+
+evaluation:
+  strip_diacritics: false  # report which setting produced the numbers
+  manual_validation_n: 200
+
+output:
+  dir: runs
+  resumable: true
+  save_token_logprobs: true   # never turn this off; re-running the grid is the
+                              # expensive path and the journal will need them

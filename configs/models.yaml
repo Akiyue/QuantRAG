@@ -1,0 +1,54 @@
+# Tier A is the primary stack: one runtime, one tokeniser, one sampler, four
+# bit widths. Tier B exists only to show the effect is not an artefact of a
+# single quantizer family - report it in its own subsection, never mixed into
+# the tier A tables.
+#
+# Q4_K_M / Q3_K_M are mixed k-quants, not uniform INT4/INT3. Record the
+# effective average bit width per file and describe it precisely in the paper.
+
+runtime:
+  n_ctx: 2048
+  seed: 1234
+  temperature: 0.0
+  n_gpu_layers: -1        # offload everything; RTX 5000 Ada has 32 GB
+  max_tokens: 32
+
+models:
+  - id: qwen2.5-0.5b
+    family: qwen2.5
+    params: "0.5B"
+    variants:
+      - {backend: llamacpp, precision: F16,    path: models/qwen2.5-0.5b-instruct-f16.gguf}
+      - {backend: llamacpp, precision: Q8_0,   path: models/qwen2.5-0.5b-instruct-q8_0.gguf}
+      - {backend: llamacpp, precision: Q4_K_M, path: models/qwen2.5-0.5b-instruct-q4_k_m.gguf}
+      - {backend: llamacpp, precision: Q3_K_M, path: models/qwen2.5-0.5b-instruct-q3_k_m.gguf}
+      - {backend: hf_awq,   precision: AWQ4,   path: models/qwen2.5-0.5b-instruct-awq, tier: B}
+
+  - id: qwen2.5-1.5b
+    family: qwen2.5
+    params: "1.5B"
+    variants:
+      - {backend: llamacpp, precision: F16,    path: models/qwen2.5-1.5b-instruct-f16.gguf}
+      - {backend: llamacpp, precision: Q8_0,   path: models/qwen2.5-1.5b-instruct-q8_0.gguf}
+      - {backend: llamacpp, precision: Q4_K_M, path: models/qwen2.5-1.5b-instruct-q4_k_m.gguf}
+      - {backend: llamacpp, precision: Q3_K_M, path: models/qwen2.5-1.5b-instruct-q3_k_m.gguf}
+      - {backend: hf_awq,   precision: AWQ4,   path: models/qwen2.5-1.5b-instruct-awq, tier: B}
+
+  - id: qwen2.5-3b
+    family: qwen2.5
+    params: "3B"
+    variants:
+      - {backend: llamacpp, precision: F16,    path: models/qwen2.5-3b-instruct-f16.gguf}
+      - {backend: llamacpp, precision: Q8_0,   path: models/qwen2.5-3b-instruct-q8_0.gguf}
+      - {backend: llamacpp, precision: Q4_K_M, path: models/qwen2.5-3b-instruct-q4_k_m.gguf}
+      - {backend: llamacpp, precision: Q3_K_M, path: models/qwen2.5-3b-instruct-q3_k_m.gguf}
+      - {backend: hf_awq,   precision: AWQ4,   path: models/qwen2.5-3b-instruct-awq, tier: B}
+
+  # Upper reference point at F16 only: locates sub-4B relative to the 7-8B band
+  # that every prior quantization study covers. Not part of the precision ladder.
+  - id: qwen2.5-7b
+    family: qwen2.5
+    params: "7B"
+    optional: true
+    variants:
+      - {backend: llamacpp, precision: F16, path: models/qwen2.5-7b-instruct-f16.gguf}
