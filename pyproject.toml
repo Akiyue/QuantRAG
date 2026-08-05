@@ -11,6 +11,9 @@ dependencies = [
     "pyyaml>=6.0",
     "tqdm>=4.66",
     "matplotlib>=3.8",
+    # CounterFact ships as a 1.1 MB parquet file. Reading it directly avoids
+    # 220 paginated API calls that get rate-limited half way through.
+    "pyarrow>=15.0",
 ]
 
 [project.optional-dependencies]
