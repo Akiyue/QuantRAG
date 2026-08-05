@@ -4,6 +4,7 @@
 #
 #   ./run.sh setup            environment + dependency check
 #   ./run.sh models           download and quantize the GGUF ladder
+#   ./run.sh smoke            first contact between real weights and the pipeline
 #   ./run.sh survey           Wikidata coverage per relation  (no GPU needed)
 #   ./run.sh dataset          build data/facts.jsonl
 #   ./run.sh pilot            50 facts, timing + non-determinism check
@@ -226,6 +227,12 @@ cmd_survey() {
   warn "pick relations by Vietnamese coverage before building the dataset (PLAN 3.2)"
 }
 
+cmd_smoke() {
+  # First contact between real weights and the pipeline. Everything before this
+  # ran against a mock backend.
+  staged smoke "$PY" scripts/smoke_test.py "$@"
+}
+
 cmd_dataset() {
   staged dataset "$PY" scripts/build_dataset.py "$@"
   staged inspect "$PY" scripts/inspect_prompts.py data/facts.jsonl
@@ -333,6 +340,7 @@ esac
 case "${1:-}" in
   setup)   shift; cmd_setup   "$@" ;;
   models)  shift; cmd_models  "$@" ;;
+  smoke)   shift; cmd_smoke   "$@" ;;
   survey)  shift; cmd_survey  "$@" ;;
   dataset) shift; cmd_dataset "$@" ;;
   pilot)   shift; cmd_pilot   "$@" ;;
