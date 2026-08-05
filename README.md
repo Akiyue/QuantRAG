@@ -5,6 +5,8 @@ Measuring context–memory arbitration in local RAG.
 
 - `docs/PROPOSAL.md` — research proposal (abstract, hypotheses, contributions)
 - `docs/PLAN.md` — execution plan (protocol, metrics, 4-week schedule, risks)
+- `docs/INSTALL.md` — conda/venv setup, CUDA backends
+- `docs/RUNBOOK.md` — what to run, when, and what to read before continuing
 
 ## Setup
 
@@ -43,8 +45,17 @@ src/quantrag/
   normalize.py       answer folding + classification (Vietnamese-aware)
   metrics.py         CCR/PRR/QFR, reliance, paired stats, attribution
   runner.py          resumable grid runner
+  analysis.py        which records pair, which quantities are defined where
+  figures.py         print- and CVD-safe figure style
 scripts/
-  inspect_prompts.py render every condition for eyeball inspection
+  build_dataset.py   CounterFact + Wikidata -> facts.jsonl
+  run_grid.py        grid driver (filter / main / dose)
+  build_splits.py    parametric-known subsets
+  run_ablation.py    span attribution
+  analyze*.py        result tables
+  make_figures.py    paper figures
+  check_noise.py     run-to-run noise floor
+  evaluator_review.py  200-item human validation
 ```
 
 ## Running the pipeline
@@ -62,7 +73,7 @@ scripts/
 ./run.sh xai              # span ablation + attribution tables
 ./run.sh review sample    # draw 200 generations for hand labelling
 ./run.sh review score     # evaluator/human agreement
-./run.sh analyze          # metrics, statistics, result tables
+./run.sh analyze          # metrics, statistics, tables, figures
 ```
 
 Results land in `results/known_all/`. Read them in this order:
@@ -128,12 +139,10 @@ Each has a test or an assertion behind it; do not route around them.
 ## Status
 
 Pipeline complete end to end, 49 tests. Every stage from raw CounterFact to the
-paper's result tables runs.
+paper's tables and figures runs.
 
-Not yet done, and none of it blocks the conference paper:
-
-- figure generation (tables are written as Markdown and CSV; plots are manual)
-- the journal-extension work: activation patching, mitigation, real retrieval
+Not yet done, and none of it blocks the conference paper: the journal-extension
+work — activation patching, mitigation, real retrieval.
 
 ## Licence
 
