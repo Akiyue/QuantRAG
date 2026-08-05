@@ -13,7 +13,7 @@
 #   ./run.sh xai              span ablation + attribution tables
 #   ./run.sh review sample    draw 200 generations for hand labelling
 #   ./run.sh review score     agreement between evaluator and human
-#   ./run.sh analyze          metrics, statistics, result tables
+#   ./run.sh analyze          metrics, statistics, result tables, figures
 #   ./run.sh status           what has run, what is gated
 #
 # There is deliberately no target that runs everything end to end. Four points
@@ -206,7 +206,9 @@ cmd_analyze() {
   # The secondary view, selected on the baseline arm alone. Reported with the
   # bias stated so a reader can see the conclusions do not depend on it.
   staged analyze_fp16 "$PY" scripts/analyze.py --split known_fp16
+  staged figures "$PY" scripts/make_figures.py --split known_all
   warn "read results/known_all/00_margin_control.md and 05_diagnostics.md first"
+  warn "then open the figure PNGs - the palette is validated, the layout is not"
 }
 
 cmd_status() {
