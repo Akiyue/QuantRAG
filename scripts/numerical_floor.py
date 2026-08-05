@@ -1,26 +1,24 @@
-"""How much does the same measurement move when nothing has changed?
+"""How much does a measurement move when nothing has changed?
 
-    python scripts/numerical_floor.py
+    python scripts/numerical_floor.py --model qwen2.5-0.5b
 
-Two questions, and the second only matters because of the first:
+Runs the identical scoring twice per precision and reports how far the results
+drift. Any difference is pure numerical wobble - kernel scheduling, reduction
+order - and has nothing to do with the experiment.
 
-  1. Run the identical scoring twice. Any difference is pure numerical wobble -
-     kernel scheduling, reduction order, nothing to do with the experiment.
-  2. Run it once with the prompt cache reused between candidates. Compare that
-     difference against the floor from (1).
+This number is the resolution of every flip rate the paper reports. If the
+stack moves answers on its own, the quantization flip rate is partly measuring
+the runtime, and a reader is entitled to know by how much. A floor of exactly
+zero is the strongest version of that statement and belongs in the
+reproducibility section.
 
-If the two are the same size, the cache reuse is not introducing anything the
-stack does not already do to itself, and the interesting number is the floor.
-If the reuse difference is much larger, it is adding noise and belongs off.
-
-Either way the floor from (1) is a number the paper needs. Every flip rate has
-to clear it, and a reader is entitled to know what it was.
+Worth running per precision rather than once: the F16 and the k-quant kernels
+are different code, so determinism in one does not imply it in the others.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import statistics
 import sys
 from pathlib import Path
@@ -31,20 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
-def load(model_id: str, precision: str, reuse: bool):
-    os.environ["QUANTRAG_KV_REUSE"] = "1" if reuse else ""
-    for mod in [m for m in list(sys.modules) if m.startswith("quantrag.backends")]:
-        del sys.modules[mod]
-    from quantrag.backends import load_backend  # noqa: PLC0415
-
-    cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text(encoding="utf-8"))
-    model = next(m for m in cfg["models"] if m["id"] == model_id)
-    var = next(v for v in model["variants"] if v["precision"] == precision)
-    return load_backend({**var, "model_id": model_id,
-                         **{k: cfg["runtime"][k]
-                            for k in ("n_ctx", "seed", "n_gpu_layers")
-                            if k in cfg["runtime"]}})
+GREEN, YELLOW, RED, OFF = "\033[32m", "\033[33m", "\033[31m", "\033[0m"
 
 
 def reliance(backend, cases) -> list[float]:
@@ -55,66 +40,79 @@ def reliance(backend, cases) -> list[float]:
     return out
 
 
-def summarise(name: str, a: list[float], b: list[float]) -> float:
-    d = [abs(x - y) for x, y in zip(a, b)]
-    flips = sum((x > 0) != (y > 0) for x, y in zip(a, b))
-    identical = sum(1 for x in d if x == 0.0)
-    print(f"{name}")
-    print(f"  identical      : {identical}/{len(d)}")
-    print(f"  median |ΔR|    : {statistics.median(d):.3e}")
-    print(f"  worst  |ΔR|    : {max(d):.3e}")
-    print(f"  argmax flips   : {flips}/{len(d)}")
-    return max(d)
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen2.5-0.5b")
-    ap.add_argument("--precision", default="F16")
+    ap.add_argument("--precisions", nargs="*", default=None,
+                    help="default: every tier A precision for the model")
     ap.add_argument("--facts", default="data/facts.sample.jsonl")
     args = ap.parse_args()
 
+    from quantrag.backends import load_backend  # noqa: PLC0415
     from quantrag.prompts import build_prompt, candidates_for  # noqa: PLC0415
     from quantrag.schema import read_facts  # noqa: PLC0415
+
+    cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text(encoding="utf-8"))
+    model = next(m for m in cfg["models"] if m["id"] == args.model)
+    variants = [v for v in model["variants"] if v.get("tier", "A") == "A"
+                and (not args.precisions or v["precision"] in args.precisions)]
 
     facts = read_facts(ROOT / args.facts)
     cases = [(build_prompt(f, lang=lg, mode=md, condition=c),
               candidates_for(f, c, lg).as_continuations())
              for f in facts for lg in ("en", "vi")
              for c in ("C0", "C1", "C2") for md in ("strict", "truth_seeking")]
-    print(f"{len(cases)} cases, {args.model} {args.precision}\n")
+    print(f"{args.model}, {len(cases)} cases per precision\n")
 
-    plain = load(args.model, args.precision, reuse=False)
-    run1 = reliance(plain, cases)
-    run2 = reliance(plain, cases)
-    del plain
+    worst_overall = 0.0
+    rows = []
+    for var in variants:
+        if not (ROOT / var["path"]).exists():
+            print(f"  {var['precision']:<8} (missing, skipped)")
+            continue
+        backend = load_backend({**var, "model_id": model["id"],
+                                **{k: cfg["runtime"][k]
+                                   for k in ("n_ctx", "seed", "n_gpu_layers")
+                                   if k in cfg["runtime"]}})
+        a, b = reliance(backend, cases), reliance(backend, cases)
+        del backend
 
-    floor = summarise("same code path, run twice", run1, run2)
+        d = [abs(x - y) for x, y in zip(a, b)]
+        flips = sum((x > 0) != (y > 0) for x, y in zip(a, b))
+        worst = max(d)
+        worst_overall = max(worst_overall, worst)
+        rows.append((var["precision"], sum(1 for x in d if x == 0.0), len(d),
+                     statistics.median(d), worst, flips))
+
+    print(f"  {'precision':<10} {'identical':>12} {'median |ΔR|':>14} "
+          f"{'worst |ΔR|':>13} {'flips':>7}")
+    for prec, ident, n, med, worst, flips in rows:
+        print(f"  {prec:<10} {f'{ident}/{n}':>12} {med:>14.3e} "
+              f"{worst:>13.3e} {flips:>7}")
+
     print()
-
-    cached = load(args.model, args.precision, reuse=True)
-    run3 = reliance(cached, cases)
-    del cached
-    reuse_gap = summarise("plain vs prompt-cache reuse", run1, run3)
-
-    print()
-    print(f"numerical floor      : {floor:.3e}")
-    print(f"reuse adds           : {reuse_gap:.3e}")
-    print()
-    if floor == 0.0 and reuse_gap == 0.0:
-        print("Fully deterministic. Any flip you later observe is attributable")
-        print("to quantization, and the paper can say so plainly.")
-    elif reuse_gap <= max(floor * 2, 1e-6):
-        print("The reuse sits inside the noise the stack already has. It is not")
-        print("adding instability - but it also measured only ~1.02x, so it stays")
-        print("off. Report the floor above as the numerical resolution.")
+    if worst_overall == 0.0:
+        print(f"{GREEN}Bit-identical across runs at every precision.{OFF}")
+        print("Any flip observed between precisions is attributable to")
+        print("quantization, not to the runtime. State this in the paper:")
+        print()
+        print("  \"Repeated evaluation of an identical configuration produced")
+        print("   bit-identical log-probabilities, so the reported instance-level")
+        print("   changes are not attributable to run-to-run variation.\"")
+    elif any(r[5] for r in rows):
+        print(f"{RED}Answers changed between identical runs.{OFF}")
+        print("The flip rate cannot be reported as a quantization effect until")
+        print("this is fixed. Try pinning n_threads and n_batch, or a")
+        print("single-GPU, single-stream configuration.")
+        sys.exit(1)
     else:
-        print("The reuse moves results well beyond the intrinsic floor. Keep it")
-        print("off (it is the default) and report the floor above.")
+        print(f"{YELLOW}Not bit-identical, but no answer changed.{OFF}")
+        print(f"Report {worst_overall:.2e} as the numerical resolution, and only")
+        print("treat flip rates comfortably above it as findings.")
+
     print()
-    print("Carry this number to ./run.sh pilot: the two-run label disagreement")
-    print("there is the same quantity measured on the whole pipeline, and every")
-    print("flip rate you report has to be comfortably larger than it.")
+    print("Next: ./run.sh pilot measures the same thing end to end, including")
+    print("generation and the evaluator.")
 
 
 if __name__ == "__main__":
