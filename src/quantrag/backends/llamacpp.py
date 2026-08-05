@@ -30,6 +30,8 @@ class LlamaCppBackend:
         seed: int = 1234,
         n_gpu_layers: int = -1,
         n_threads: int | None = None,
+        main_gpu: int = 0,
+        split_mode: int = 0,       # LLAMA_SPLIT_MODE_NONE
         verbose: bool = False,
         **_: object,
     ) -> None:
@@ -48,13 +50,24 @@ class LlamaCppBackend:
         self.precision = precision
         self.model_id = model_id or Path(self.path).stem
         self.seed = seed
+        self.main_gpu = main_gpu
+        self.split_mode = split_mode
 
+        # One model, one GPU, by default. Every model here fits in a single
+        # card, so splitting a 1.5B across two devices buys nothing and adds a
+        # variable - tensor-split reductions are another place where results
+        # can move between otherwise identical runs, which is exactly what the
+        # flip rate must not be measuring.
+        # To use both cards, run two processes with CUDA_VISIBLE_DEVICES set
+        # rather than splitting one model.
         self._llm = Llama(
             model_path=self.path,
             n_ctx=n_ctx,
             seed=seed,
             n_gpu_layers=n_gpu_layers,
             n_threads=n_threads,
+            main_gpu=main_gpu,
+            split_mode=split_mode,
             logits_all=True,   # required for echoed log-probabilities
             verbose=verbose,
         )
@@ -133,6 +146,8 @@ class LlamaCppBackend:
     def env(self) -> dict:
         import llama_cpp
 
+        import os
+
         return {
             "backend": "llamacpp",
             "model_id": self.model_id,
@@ -141,6 +156,12 @@ class LlamaCppBackend:
             "gguf_sha256": _sha256(self.path),
             "llama_cpp_python": getattr(llama_cpp, "__version__", "unknown"),
             "seed": self.seed,
+            "main_gpu": self.main_gpu,
+            "split_mode": self.split_mode,
+            # Which physical device this arm ran on. On a multi-GPU box two
+            # arms can land on different cards, and that belongs in the record
+            # rather than being reconstructed later from shell history.
+            "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "all"),
         }
 
 

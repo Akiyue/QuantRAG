@@ -124,6 +124,27 @@ tmux new -s grid
 
 96,000 lượt, ước ~15–30 giờ GPU. Cứ để chạy, log ở `logs/`.
 
+### Nếu có nhiều GPU
+
+Mỗi model đều vừa một card, nên **đừng chia một model qua hai GPU** — không được
+gì mà thêm một biến vào tính tất định. Thay vào đó chạy hai tiến trình, mỗi cái
+ghim một card:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python scripts/run_grid.py --pass main \
+    --models qwen2.5-0.5b qwen2.5-1.5b &
+CUDA_VISIBLE_DEVICES=1 python scripts/run_grid.py --pass main \
+    --models qwen2.5-3b &
+wait
+```
+
+Mỗi (model, precision) ghi ra file riêng nên không đụng nhau. Card nào chạy arm
+nào được ghi vào `env.cuda_visible_devices` của từng record, khỏi phải dựng lại
+từ lịch sử shell về sau.
+
+Chia thế nào cho cân: 3B nặng gấp khoảng đôi 1.5B, nên `{0.5B, 1.5B}` trên một
+card và `{3B}` trên card kia là xấp xỉ đều.
+
 ```bash
 ./run.sh dose
 ```
