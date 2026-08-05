@@ -138,38 +138,71 @@ cmd_setup() {
 
 cmd_models() {
   need huggingface-cli
-  # Only llama-quantize and the conversion script are needed here, and
-  # quantization is pure CPU work - so this build does not want CUDA or nvcc.
+  # Quantization is pure CPU work, so this build wants neither CUDA nor nvcc.
   # Inference goes through llama-cpp-python, which is the CUDA-linked one.
   [[ -d "$LLAMA_CPP" ]] || die "llama.cpp not found at $LLAMA_CPP
   git clone https://github.com/ggerganov/llama.cpp \"$LLAMA_CPP\"
   cmake -B \"$LLAMA_CPP/build\" \"$LLAMA_CPP\" && cmake --build \"$LLAMA_CPP/build\" -j"
 
-  local quantizer
-  quantizer="$(find "$LLAMA_CPP" -name 'llama-quantize*' -type f 2>/dev/null | head -1)"
+  local quantizer splitter
+  quantizer="$(find "$LLAMA_CPP" -name 'llama-quantize*' -type f -perm -u+x 2>/dev/null | head -1)"
+  splitter="$(find "$LLAMA_CPP" -name 'llama-gguf-split*' -type f -perm -u+x 2>/dev/null | head -1)"
   [[ -n "$quantizer" ]] || die "llama-quantize not built in $LLAMA_CPP"
 
+  # Start from the F16 GGUF Qwen publishes rather than downloading safetensors
+  # and converting: it skips a multi-gigabyte download and the torch install
+  # that convert_hf_to_gguf.py needs.
+  #
+  # What is NOT outsourced is the quantization itself. Every arm of the ladder
+  # is produced here, from one F16 file, by one llama-quantize build. Pulling
+  # ready-made Q4/Q3 files would mean different uploaders and different
+  # settings per arm - unacceptable in a paper about quantization.
   mkdir -p "$HF_MODELS"
-  for repo in Qwen/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-1.5B-Instruct Qwen/Qwen2.5-3B-Instruct; do
-    local short="${repo##*/}"; short="$(echo "$short" | tr '[:upper:]' '[:lower:]')"
-    local src="$HF_MODELS/hf/$short"
+  local sizes="${MODEL_SIZES:-0.5B 1.5B 3B}"
+
+  for size in $sizes; do
+    local repo="Qwen/Qwen2.5-${size}-Instruct-GGUF"
+    local lower_size; lower_size="$(echo "$size" | tr '[:upper:]' '[:lower:]')"
+    local short="qwen2.5-${lower_size}-instruct"
     local f16="$HF_MODELS/${short}-f16.gguf"
 
-    [[ -d "$src" ]] || huggingface-cli download "$repo" --local-dir "$src"
-    [[ -f "$f16" ]] || "$PY" "$LLAMA_CPP/convert_hf_to_gguf.py" "$src" \
-        --outfile "$f16" --outtype f16
+    if [[ ! -f "$f16" ]]; then
+      log "$size: fetching F16"
+      huggingface-cli download "$repo" --include "*fp16*.gguf" \
+        --local-dir "$HF_MODELS/dl/$short"
 
-    # One quantizer, one runtime, four bit widths: the only thing that differs
-    # between arms is the number of bits.
+      # 3B and larger are published as shards and must be joined before they
+      # can be quantized.
+      local first
+      first="$(find "$HF_MODELS/dl/$short" -name '*fp16*.gguf' | sort | head -1)"
+      [[ -n "$first" ]] || die "no fp16 gguf downloaded for $size"
+      local count
+      count="$(find "$HF_MODELS/dl/$short" -name '*fp16*.gguf' | wc -l)"
+
+      if [[ "$count" -gt 1 ]]; then
+        [[ -n "$splitter" ]] || die "$size is sharded but llama-gguf-split is missing"
+        log "$size: merging $count shards"
+        "$splitter" --merge "$first" "$f16"
+      else
+        mv "$first" "$f16"
+      fi
+      rm -rf "$HF_MODELS/dl/$short"
+    fi
+
     for q in Q8_0 Q4_K_M Q3_K_M; do
       local lower; lower="$(echo "$q" | tr '[:upper:]' '[:lower:]')"
       local out="$HF_MODELS/${short}-${lower}.gguf"
-      [[ -f "$out" ]] || "$quantizer" "$f16" "$out" "$q"
+      [[ -f "$out" ]] && continue
+      log "$size: quantizing $q"
+      "$quantizer" "$f16" "$out" "$q"
     done
   done
 
+  # The checksums are provenance: they are what lets a reader confirm the file
+  # behind a reported number is the file they have.
   log "checksums -> $HF_MODELS/SHA256SUMS"
   (cd "$HF_MODELS" && sha256sum ./*.gguf > SHA256SUMS)
+  ls -la "$HF_MODELS"/*.gguf
   log "model ladder ready"
 }
 
