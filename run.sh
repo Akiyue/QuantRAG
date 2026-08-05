@@ -228,12 +228,14 @@ cmd_survey() {
 }
 
 cmd_smoke() {
+  [[ "${1:-}" == "--" ]] && shift
   # First contact between real weights and the pipeline. Everything before this
   # ran against a mock backend.
   staged smoke "$PY" scripts/smoke_test.py "$@"
 }
 
 cmd_dataset() {
+  [[ "${1:-}" == "--" ]] && shift
   staged dataset "$PY" scripts/build_dataset.py "$@"
   staged inspect "$PY" scripts/inspect_prompts.py data/facts.jsonl
   log "eyeball the prompts above; prompt bugs are invisible in aggregate numbers"
@@ -275,6 +277,7 @@ cmd_dose() {
 }
 
 cmd_xai() {
+  [[ "${1:-}" == "--" ]] && shift
   require_gate paraphrase
   staged xai "$PY" scripts/run_ablation.py "$@"
   staged xai_analysis "$PY" scripts/analyze_xai.py

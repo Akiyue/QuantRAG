@@ -21,11 +21,8 @@ Safe to interrupt and re-run: every Wikidata response is cached on disk.
 from __future__ import annotations
 
 import argparse
-import json
 import random
 import sys
-import urllib.parse
-import urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -33,45 +30,18 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from quantrag.counterfact import load_rows  # noqa: E402
 from quantrag.schema import Fact, write_facts  # noqa: E402
 from quantrag.wikidata import Wikidata  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw"
-ROWS_API = "https://datasets-server.huggingface.co/rows"
-DATASET = "NeelNanda/counterfact-tracing"
-UA = "QuantRAG/0.1 (academic research)"
 
 
 # --------------------------------------------------------------- counterfact
 
 def cache_counterfact(limit: int) -> list[dict]:
-    path = RAW / "counterfact.jsonl"
-    if path.exists():
-        rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l]
-        print(f"  cached: {len(rows)} rows")
-        return rows
-
-    RAW.mkdir(parents=True, exist_ok=True)
-    rows: list[dict] = []
-    while len(rows) < limit:
-        q = urllib.parse.urlencode({
-            "dataset": DATASET, "config": "default", "split": "train",
-            "offset": len(rows), "length": 100,
-        })
-        req = urllib.request.Request(f"{ROWS_API}?{q}", headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            payload = json.load(resp)
-        batch = [r["row"] for r in payload.get("rows", [])]
-        if not batch:
-            break
-        rows.extend(batch)
-        print(f"\r  fetched {len(rows)}", end="", flush=True)
-    print()
-    with open(path, "w", encoding="utf-8") as fh:
-        for r in rows:
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-    return rows
+    return load_rows(RAW / "counterfact.jsonl", limit)
 
 
 # ------------------------------------------------------------------ helpers
