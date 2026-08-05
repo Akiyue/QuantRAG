@@ -8,3 +8,7 @@ __pycache__/
 data/facts.jsonl
 data/raw/
 .claude/settings.local.json
+results/
+data/facts.smoke.jsonl
+data/splits*.json
+data/xai_sample.json

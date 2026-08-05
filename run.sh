@@ -10,8 +10,10 @@
 #   ./run.sh filter           C0 pass -> parametric-known subsets
 #   ./run.sh main             full behavioural grid
 #   ./run.sh dose             evidence-pressure ladder
-#   ./run.sh xai              span ablation
-#   ./run.sh analyze          metrics, statistics, figures
+#   ./run.sh xai              span ablation + attribution tables
+#   ./run.sh review sample    draw 200 generations for hand labelling
+#   ./run.sh review score     agreement between evaluator and human
+#   ./run.sh analyze          metrics, statistics, result tables
 #   ./run.sh status           what has run, what is gated
 #
 # There is deliberately no target that runs everything end to end. Four points
@@ -156,7 +158,7 @@ cmd_pilot() {
   # flip rate you intend to report, QFR is measuring the GPU, not quantization.
   staged pilot_a "$PY" scripts/run_grid.py --pass main --limit 50 --out-dir runs/pilot_a
   staged pilot_b "$PY" scripts/run_grid.py --pass main --limit 50 --out-dir runs/pilot_b
-  warn "compare runs/pilot_a and runs/pilot_b: disagreement is your noise floor"
+  staged noise "$PY" scripts/check_noise.py runs/pilot_a runs/pilot_b
 }
 
 cmd_filter() {
@@ -164,7 +166,6 @@ cmd_filter() {
   # Runs on q_filter, never q_eval. Selecting items on the same question used to
   # evaluate is selection on the baseline arm and manufactures an effect.
   staged filter "$PY" scripts/run_grid.py --pass filter
-  [[ -f scripts/build_splits.py ]] || { warn "scripts/build_splits.py not written yet"; return 0; }
   staged splits "$PY" scripts/build_splits.py
 }
 
@@ -184,15 +185,28 @@ cmd_dose() {
 
 cmd_xai() {
   require_gate paraphrase
-  [[ -f scripts/run_ablation.py ]] || die "scripts/run_ablation.py not written yet"
-  staged xai "$PY" scripts/run_ablation.py
+  staged xai "$PY" scripts/run_ablation.py "$@"
+  staged xai_analysis "$PY" scripts/analyze_xai.py
+}
+
+cmd_review() {
+  # Every headline rate is built on the automatic evaluator. This is what puts
+  # a number on how much it can be trusted, and that number goes in the paper.
+  case "${1:-sample}" in
+    sample) staged review_sample "$PY" scripts/evaluator_review.py sample --n 200
+            warn "fill in the human_label column of results/evaluator_review.csv" ;;
+    score)  staged review_score  "$PY" scripts/evaluator_review.py score ;;
+    *) die "usage: ./run.sh review [sample|score]" ;;
+  esac
 }
 
 cmd_analyze() {
   require_gate evaluator
-  [[ -f scripts/analyze.py ]] || die "scripts/analyze.py not written yet"
-  staged analyze "$PY" scripts/analyze.py
-  warn "margin control decides whether the central claim survives - read it first"
+  staged analyze "$PY" scripts/analyze.py --split known_all
+  # The secondary view, selected on the baseline arm alone. Reported with the
+  # bias stated so a reader can see the conclusions do not depend on it.
+  staged analyze_fp16 "$PY" scripts/analyze.py --split known_fp16
+  warn "read results/known_all/00_margin_control.md and 05_diagnostics.md first"
 }
 
 cmd_status() {
@@ -234,6 +248,7 @@ case "${1:-}" in
   main)    shift; cmd_main    "$@" ;;
   dose)    shift; cmd_dose    "$@" ;;
   xai)     shift; cmd_xai     "$@" ;;
+  review)  shift; cmd_review  "$@" ;;
   analyze) shift; cmd_analyze "$@" ;;
   gate)    shift; cmd_gate    "$@" ;;
   status)  shift; cmd_status  "$@" ;;

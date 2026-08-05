@@ -51,18 +51,30 @@ scripts/
 ## Running the pipeline
 
 ```bash
-./run.sh status     # what has run, what is gated
-./run.sh setup      # venv + deps + test suite
-./run.sh survey     # Wikidata coverage per relation (no GPU)
-./run.sh models     # download + quantize the GGUF ladder
-./run.sh dataset    # build data/facts.jsonl
-./run.sh pilot      # 50 facts twice: throughput + non-determinism
-./run.sh filter     # C0 pass -> parametric-known subsets
-./run.sh main       # full behavioural grid
-./run.sh dose       # evidence-pressure ladder
-./run.sh xai        # span ablation
-./run.sh analyze    # metrics, statistics, figures
+./run.sh status           # what has run, what is gated
+./run.sh setup            # venv + deps + test suite
+./run.sh survey           # Wikidata coverage per relation (no GPU)
+./run.sh models           # download + quantize the GGUF ladder
+./run.sh dataset          # build data/facts.jsonl
+./run.sh pilot            # 50 facts twice + noise floor
+./run.sh filter           # C0 pass -> parametric-known subsets
+./run.sh main             # full behavioural grid
+./run.sh dose             # evidence-pressure ladder
+./run.sh xai              # span ablation + attribution tables
+./run.sh review sample    # draw 200 generations for hand labelling
+./run.sh review score     # evaluator/human agreement
+./run.sh analyze          # metrics, statistics, result tables
 ```
+
+Results land in `results/known_all/`. Read them in this order:
+
+| File | Why first |
+|---|---|
+| `00_margin_control.md` | The falsification test. If flips are fully explained by how close F16 already was to the boundary, the central claim is not about quantization |
+| `05_diagnostics.md` | Evaluator sanity: generation vs teacher-forced agreement, label distribution, ambiguous answers |
+| `02_flips.md` | Instance-level instability and its **asymmetry** — the directional claim that survives a null net effect |
+| `03_reliance.md` | ΔR and ΔP_ctx: the arbitration shift itself |
+| `04_interactions.md` | precision × mode and precision × language, where the signal is if the net effect is null |
 
 There is **no target that runs everything end to end**, on purpose. Four points
 in this pipeline need a human, and a script that drives past them at 2am
@@ -116,6 +128,15 @@ Each has a test or an assertion behind it; do not route around them.
 
 ## Status
 
-Foundation complete and tested (37 tests). Still to build: dataset construction
-from CounterFact, the Vietnamese translation pass, span-ablation driver,
-analysis notebooks, and the tier B backend.
+Pipeline complete end to end, 49 tests. Every stage from raw CounterFact to the
+paper's result tables runs.
+
+Not yet done, and none of it blocks the conference paper:
+
+- figure generation (tables are written as Markdown and CSV; plots are manual)
+- the journal-extension work: activation patching, mitigation, real retrieval
+
+## Licence
+
+MIT for the code. The datasets fetched at build time keep their own terms — see
+`LICENSE`.

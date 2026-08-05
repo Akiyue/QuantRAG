@@ -16,6 +16,14 @@ def load_backend(spec: dict):
     if kind == "mock":
         return MockBackend(**{k: v for k, v in spec.items() if k != "backend"})
     if kind == "hf_awq":
-        from .hf import HFBackend
+        try:
+            from .hf import HFBackend
+        except ModuleNotFoundError as exc:
+            raise NotImplementedError(
+                "the tier B (AWQ) backend is not written yet. Tier A - the "
+                "llama.cpp precision ladder that produces every headline result - "
+                "does not depend on it; run with --tier A. Tier B is the "
+                "cross-quantizer robustness check (PLAN 1.3)."
+            ) from exc
         return HFBackend(**{k: v for k, v in spec.items() if k != "backend"})
     raise ValueError(f"unknown backend {kind!r}")

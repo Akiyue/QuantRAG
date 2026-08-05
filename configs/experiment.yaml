@@ -9,6 +9,7 @@ grid:
 # on the same question used for evaluation is selection on the baseline arm and
 # manufactures an apparent quantization effect.
 filter_pass:
+  languages: [en, vi]      # known subsets are computed per language
   conditions: [C0]
   modes: [strict]
   kinds: [score, generate]
