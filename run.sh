@@ -249,9 +249,15 @@ cmd_pilot() {
   # Two questions: how fast is it really, and how much does the same config move
   # between identical runs. If run-to-run noise is not clearly smaller than the
   # flip rate you intend to report, QFR is measuring the GPU, not quantization.
+  # Both halves must be computed fresh. The runner resumes by design, which is
+  # right for the grid and wrong here: a directory left from an earlier
+  # invocation would contribute answers produced by an earlier version of the
+  # prompts or the aliases, and the "noise" measured would be the edits.
+  rm -rf runs/pilot_a runs/pilot_b
   staged pilot_a "$PY" scripts/run_grid.py --pass main --limit 50 --out-dir runs/pilot_a
   staged pilot_b "$PY" scripts/run_grid.py --pass main --limit 50 --out-dir runs/pilot_b
-  staged noise "$PY" scripts/check_noise.py runs/pilot_a runs/pilot_b
+  staged noise "$PY" scripts/check_noise.py runs/pilot_a runs/pilot_b \
+    || warn "run scripts/diff_runs.py runs/pilot_a runs/pilot_b to see where"
 }
 
 cmd_filter() {

@@ -52,20 +52,28 @@ def main() -> None:
             total += 1
             disagree += ra.label is not rb.label
 
-    deltas = []
+    deltas, nans = [], 0
     for key, per_prec in sa.items():
         for prec, ra in per_prec.items():
             rb = sb.get(key, {}).get(prec)
             if rb is None or ra.r is None or rb.r is None:
                 continue
-            deltas.append(abs(ra.r - rb.r))
+            d = abs(ra.r - rb.r)
+            # A nan means a score was degenerate, which is its own problem;
+            # letting it poison the mean hides both.
+            if d != d:
+                nans += 1
+            else:
+                deltas.append(d)
 
     rate = disagree / total if total else float("nan")
     print(f"label disagreement : {disagree}/{total} = {rate:.4f}")
     if deltas:
-        print(f"|ΔR| mean          : {statistics.fmean(deltas):.6f}")
+        print(f"|ΔR| median        : {statistics.median(deltas):.6f}")
         print(f"|ΔR| max           : {max(deltas):.6f}")
         print(f"|ΔR| exactly zero  : {sum(d == 0 for d in deltas)}/{len(deltas)}")
+    if nans:
+        print(f"|ΔR| nan           : {nans}  <- degenerate scores, investigate")
 
     print()
     if total and rate == 0:
