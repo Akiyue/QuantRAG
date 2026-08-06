@@ -16,7 +16,7 @@ from typing import Iterator, Sequence
 from tqdm import tqdm
 
 from .backends import Backend
-from .backends.base import BoundaryError
+from .backends.base import BoundaryError, DegenerateOutput
 from .normalize import Label, classify
 from .prompts import (
     PROMPT_VERSION,
@@ -116,14 +116,18 @@ def run(
         try:
             record = _run_cell(backend, fact, cell, max_tokens=max_tokens,
                                strip_diacritics=strip_diacritics)
-        except BoundaryError as exc:
-            # A tokenisation boundary problem invalidates the score rather than
-            # merely degrading it, so record it explicitly instead of writing a
-            # number nobody can trust.
+        except (BoundaryError, DegenerateOutput) as exc:
+            # Both invalidate the cell rather than merely degrading it. Writing
+            # a number here would put a tokenisation fault or a GPU glitch into
+            # the denominator of every rate, where it is indistinguishable from
+            # a genuine wrong answer.
+            kind = ("boundary" if isinstance(exc, BoundaryError) else "degenerate")
             stats["errors"] += 1
+            stats.setdefault(kind, 0)
+            stats[kind] += 1
             append_jsonl(out_path, {
                 "key": cell.key(backend.model_id, backend.precision),
-                "error": "boundary", "detail": str(exc),
+                "error": kind, "detail": str(exc),
                 "model_id": backend.model_id, "precision": backend.precision,
             })
             continue

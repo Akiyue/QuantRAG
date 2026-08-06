@@ -1,6 +1,7 @@
-from .base import Backend, ScoreResult, GenResult, MockBackend, BoundaryError
+from .base import (Backend, ScoreResult, GenResult, MockBackend, BoundaryError,
+                   DegenerateOutput)
 
-__all__ = ["Backend", "ScoreResult", "GenResult", "MockBackend", "BoundaryError", "load_backend"]
+__all__ = ["Backend", "ScoreResult", "GenResult", "MockBackend", "BoundaryError", "DegenerateOutput", "load_backend"]
 
 
 def load_backend(spec: dict):

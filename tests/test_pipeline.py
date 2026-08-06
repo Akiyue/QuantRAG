@@ -332,3 +332,25 @@ def test_records_carry_provenance(tmp_path, facts):
     # Per-token log-probabilities must survive: re-running the grid later is the
     # expensive path, and the journal extension needs them.
     assert rec["score_fake"]["token_logprobs"]
+
+
+# -- degenerate output ----------------------------------------------------
+
+def test_degenerate_run_of_punctuation_is_rejected():
+    """llama.cpp emits a run of '!' when the logits come back NaN. Recorded as
+    OTHER it would be indistinguishable from a genuine wrong answer and would
+    sit in the denominator of every rate."""
+    from quantrag.backends.base import DegenerateOutput, check_degenerate
+
+    with pytest.raises(DegenerateOutput):
+        check_degenerate("!!!!!!!!!!!!!!!!")
+    with pytest.raises(DegenerateOutput):
+        check_degenerate("  ????????????  ")
+
+
+def test_real_answers_are_not_mistaken_for_degenerate():
+    from quantrag.backends.base import check_degenerate
+
+    for text in ("Paris", "London", "Luân Đôn", "aaa", "!!", "Paris!!!",
+                 "Thủ đô của Pháp là London."):
+        check_degenerate(text)   # must not raise

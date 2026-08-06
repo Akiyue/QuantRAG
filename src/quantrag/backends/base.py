@@ -21,6 +21,20 @@ from dataclasses import dataclass, field
 from typing import Protocol, Sequence, runtime_checkable
 
 
+class DegenerateOutput(RuntimeError):
+    """The model produced numerical garbage rather than an answer.
+
+    llama.cpp emits a run of '!' when the logits come back NaN - a GPU fault, a
+    corrupted weight file, memory pressure. It looks like an answer and it is
+    not one.
+
+    This has to be an error rather than a label. Recorded as OTHER it would be
+    indistinguishable from a genuine wrong answer, sit in the denominator of
+    every rate, and quietly become a finding: an arm that glitched would show
+    lower compliance than one that did not.
+    """
+
+
 class BoundaryError(RuntimeError):
     """Raised when a continuation does not begin on a token boundary.
 
@@ -91,6 +105,20 @@ class Backend(Protocol):
     def env(self) -> dict:
         """Environment fingerprint recorded with every run for reproducibility."""
         ...
+
+
+def check_degenerate(text: str, min_run: int = 8) -> None:
+    """Reject a generation that is one character repeated.
+
+    Narrow on purpose: a real answer is never eight identical non-space
+    characters in a row, and anything looser would start rejecting answers.
+    """
+    stripped = text.strip()
+    if len(stripped) >= min_run and len(set(stripped)) == 1 and not stripped[0].isalnum():
+        raise DegenerateOutput(
+            f"model emitted {stripped[0]!r} x{len(stripped)} - NaN logits, not an "
+            f"answer. Check the GGUF checksum and GPU health for this arm."
+        )
 
 
 def split_boundary(text_offsets: Sequence[int], prompt_len: int) -> int:

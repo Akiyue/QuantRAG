@@ -18,7 +18,8 @@ import os
 from pathlib import Path
 from typing import Sequence
 
-from .base import BoundaryError, GenResult, ScoreResult
+from .base import (BoundaryError, DegenerateOutput, GenResult, ScoreResult,
+                   check_degenerate)
 
 
 class LlamaCppBackend:
@@ -136,9 +137,21 @@ class LlamaCppBackend:
             # Row i holds the distribution over token i+1, so the rows that
             # predict the continuation start one before it.
             rows = scores[n_prompt - 1: len(full_ids) - 1]
+            if not np.isfinite(rows).all():
+                raise DegenerateOutput(
+                    f"non-finite logits scoring {cont!r}. The model produced NaN "
+                    f"rather than a distribution; check the GGUF checksum and GPU "
+                    f"health for {self.model_id} {self.precision}."
+                )
+
             rows = rows - rows.max(axis=-1, keepdims=True)
             logprobs = rows - np.log(np.exp(rows).sum(axis=-1, keepdims=True))
             vals = [float(logprobs[i, t]) for i, t in enumerate(target_ids)]
+            if not all(v == v and v != float("-inf") for v in vals):
+                raise DegenerateOutput(
+                    f"non-finite log-probability for {cont!r} in {self.model_id} "
+                    f"{self.precision}"
+                )
 
             toks = [self._llm.detokenize([t]).decode("utf-8", errors="replace")
                     for t in target_ids]
@@ -165,6 +178,7 @@ class LlamaCppBackend:
             stop=["<|im_end|>", "<|im_start|>", "\n\n"],
         )
         choice = out["choices"][0]
+        check_degenerate(choice["text"])
         return GenResult(
             text=choice["text"].strip(),
             n_tokens=int(out.get("usage", {}).get("completion_tokens", 0)),
