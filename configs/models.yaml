@@ -7,10 +7,18 @@
 # effective average bit width per file and describe it precisely in the paper.
 
 runtime:
-  n_ctx: 2048
+  # Scoring needs per-position logits, and llama.cpp allocates that buffer as
+  # n_ctx x vocab: at 2048 and a 152k vocabulary it is 1.24 GB per model, on top
+  # of the weights. The prompts here run 150-250 tokens even with two documents,
+  # so most of that was reserved and never used. 768 keeps a wide margin and
+  # gives back most of a gigabyte - which matters when the card is shared.
+  #
+  # A prompt that outgrows this raises a BoundaryError rather than truncating,
+  # so the setting cannot silently corrupt a measurement.
+  n_ctx: 768
   seed: 1234
   temperature: 0.0
-  n_gpu_layers: -1        # offload everything; RTX 5000 Ada has 32 GB
+  n_gpu_layers: -1        # offload everything
   max_tokens: 32
 
 models:
