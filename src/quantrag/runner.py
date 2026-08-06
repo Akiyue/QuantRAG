@@ -16,7 +16,7 @@ from typing import Iterator, Sequence
 from tqdm import tqdm
 
 from .backends import Backend
-from .backends.base import BoundaryError, DegenerateOutput
+from .backends.base import BoundaryError, DegenerateArm, DegenerateOutput
 from .normalize import Label, classify
 from .prompts import (
     PROMPT_VERSION,
@@ -109,6 +109,12 @@ def run(
     stats = {"total": len(cells), "skipped": len(cells) - len(pending),
              "written": 0, "errors": 0}
 
+    # An arm that starts producing NaN does not recover on its own, and a run
+    # that is half garbage is not a partial result - it is an arm that has to be
+    # redone. Stopping loudly beats writing a thousand error records and moving
+    # on, which during a long grid would be noticed only at analysis time.
+    abort_after = max(20, int(0.05 * len(pending)))
+
     it = tqdm(pending, desc=f"{backend.model_id}/{backend.precision}",
               disable=not progress)
     for cell in it:
@@ -130,6 +136,16 @@ def run(
                 "error": kind, "detail": str(exc),
                 "model_id": backend.model_id, "precision": backend.precision,
             })
+            if stats.get("degenerate", 0) >= abort_after:
+                raise DegenerateArm(
+                    f"{backend.model_id} {backend.precision}: "
+                    f"{stats['degenerate']} degenerate cells out of "
+                    f"{stats['written'] + stats['errors']} attempted. This arm is "
+                    f"not producing usable output - NaN logits at this rate are a "
+                    f"hardware or memory problem, not a property of the model. "
+                    f"Delete its JSONL and rerun once the cause is found; a "
+                    f"partially-degenerate arm must not be analysed."
+                ) from exc
             continue
 
         record.update({

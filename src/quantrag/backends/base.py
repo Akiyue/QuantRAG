@@ -35,6 +35,10 @@ class DegenerateOutput(RuntimeError):
     """
 
 
+class DegenerateArm(RuntimeError):
+    """Too many degenerate cells: the whole arm is unusable, not just the cells."""
+
+
 class BoundaryError(RuntimeError):
     """Raised when a continuation does not begin on a token boundary.
 
